@@ -1,0 +1,154 @@
+---
+title: "visualization_ggplot1"
+author: "DuDu"
+date: "9/26/2019"
+output: github_document
+---
+```{r}
+library(tidyverse)
+#install.packages("ggridges")
+#install.packages("rnoaa")
+library(rnoaa)
+library(ggridges)
+```
+
+
+
+```{r}
+## 
+weather_df = 
+  rnoaa::meteo_pull_monitors(c("USW00094728", "USC00519397", "USS0023B17S"),
+                      var = c("PRCP", "TMIN", "TMAX"), 
+                      date_min = "2017-01-01",
+                      date_max = "2017-12-31") %>%
+  mutate(
+    name = recode (id, USW00094728 = "CentralPark_NY", 
+                       USC00519397 = "Waikiki_HA",
+                       USS0023B17S = "Waterhole_WA"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+
+weather_df
+```
+
+```{r}
+## ggplot aes build a blank plot
+ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point()
+
+weather_df %>%
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_point()
+
+plot_weather = 
+  weather_df %>%
+  ggplot(aes(x = tmin, y = tmax)) 
+
+plot_weather + geom_point()
+
+
+ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = name))
+
+## "alpha = .5" make the points a little transparent, readable
+## "geom_smooth" draw a curve to see the trend
+## "color" in "ggplot", all groups in different color
+## "color" in "geom_point", just first group will be colored
+## 
+ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = name), alpha = .5) +
+  geom_smooth(se = FALSE)
+
+ggplot(weather_df, aes(x = tmin, y = tmax,color = name)) + 
+  geom_point( alpha = .5) +
+  geom_smooth(se = FALSE)
+```
+```{r}
+## "facet_grid" split the points based on group into different plots
+ggplot(weather_df, aes(x = tmin, y = tmax, color = name)) + 
+  geom_point(alpha = .5) +
+  geom_smooth(se = FALSE) + 
+  facet_grid(. ~ name)
+```
+## please be careful the withden of the plot!!
+```{r fig.width=6}
+## "geom_point(aes(size = prcp), alpha = .5)" add another information variable
+## 根据prcp的数值，点可大可小
+ggplot(weather_df, aes(x = date, y = tmax, color = name)) + 
+  geom_point(aes(size = prcp), alpha = .5) +
+  geom_smooth(se = FALSE) + 
+  facet_grid(. ~ name)
+```
+
+## some extra stuff
+```{r fig.width=12}
+## remove"geom_point" can also output smooth lines without points
+ggplot(weather_df, aes(x = date, y = tmax, color = name)) + 
+  geom_smooth(size=2,se = FALSE) 
+```
+
+```{r}
+## " geom_hex" scatterplot
+# install.packages("hexbin")
+ggplot(weather_df, aes(x = tmax, y = tmin)) + 
+  geom_hex()
+```
+
+# more kinds of plots
+```{r}
+## hist has two kinds of color 
+## "color=" just have the fifferent color frame 
+## "fill=" fill the different bars with different color
+## hist dose not need y aes
+weather_df %>%
+  ggplot(aes(x=tmax,color=name))+
+  geom_histogram()
+
+ggplot(weather_df, aes(x = tmax, fill = name)) + 
+  geom_histogram()+
+    facet_grid(. ~ name)
+
+```
+
+density plots
+```{r}
+## "geom_density()"exploring the distribution 
+ggplot(weather_df, aes(x = tmax, fill = name)) + 
+  geom_density(alpha = .4)
+```
+
+
+boxplot
+```{r}
+
+ggplot(weather_df, aes(x = name, y = tmax)) + 
+  geom_boxplot()
+
+```
+
+violin plot 
+```{r}
+## same kind of information like desity plot
+## 越粗代表点越密集
+## 可以从很多组中看到分布与其他组别不同的组（e.g. two peaks）
+ggplot(weather_df, aes(x = name, y = tmax)) + 
+  geom_violin()
+```
+
+ridges plots
+```{r}
+## like violin plots, can see different distribution in a lot of different groups
+ggplot(weather_df, aes(x = tmax, y = name)) + 
+  geom_density_ridges(scale = .85)
+```
+## saving a plot
+```{r}
+
+weather_plot = ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = name), alpha = .5) 
+
+## "ggave" 会自动储存上面离他最近的的图，但是最好在下面设置一下！
+ggsave("weather_plot.pdf", weather_plot)
+```
+
