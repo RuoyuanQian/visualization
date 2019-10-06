@@ -1,0 +1,203 @@
+---
+title: "visualization_ggplot1"
+author: "DuDu"
+date: "9/26/2019"
+output: github_document
+---
+
+group_by()的分组会持续到之后，注意研究整体的时候不要漏掉数据
+第一个code chunk用来library，所有的
+```{r}
+library(tidyverse)
+#install.packages("ggridges")
+#install.packages("rnoaa")
+library(rnoaa)
+library(ggridges)
+
+## 去github 找设置的code，and put them in every markdown files
+```
+
+
+
+```{r}
+## 
+weather_df = 
+  rnoaa::meteo_pull_monitors(c("USW00094728", "USC00519397", "USS0023B17S"),
+                      var = c("PRCP", "TMIN", "TMAX"), 
+                      date_min = "2017-01-01",
+                      date_max = "2017-12-31") %>%
+  mutate(
+    name = recode (id, USW00094728 = "CentralPark_NY", 
+                       USC00519397 = "Waikiki_HA",
+                       USS0023B17S = "Waterhole_WA"),
+    tmin = tmin / 10,
+    tmax = tmax / 10,
+    month= lubridate::floor_date(date,unit = "month")) %>%
+  select(name, id, everything())
+
+weather_df
+```
+## `group_by` and counting
+sperate dataset by name and month, 在 consle 里会显示组别名称在一开始
+```{r}
+weather_df %>% 
+  group_by(name,month)
+```
+## 按照组别计算obervstions总数
+
+```{r}
+weather_df %>% 
+  group_by(name,month) %>% 
+    summarize(n = n(),
+    n_unique = n_distinct(date))
+```
+
+## 两种计算observstion 的方法都行
+```{r}
+weather_df %>% 
+  count(name,month)
+```
+
+## 不要用table, 输出的不是数据集，不好取数据
+```{r}
+weather_df %>% 
+  pull(name) %>% 
+  table
+```
+## nice table!!`knitr::kable`
+```{r}
+weather_df %>% 
+  count(name) %>% 
+  knitr::kable()
+```
+## 2x2 tables
+创建新变量cold，大于5和小于5分别表述，如果不属于那两类，就赋值给“”
+```{r}
+weather_df %>% 
+  filter(name != "Waikiki_HA") %>% 
+  mutate(
+    cold = case_when(
+      tmax<5 ~ "cold",
+      tmax>=5, "not cold",
+      TRUE ~ ""
+    )
+  ) %>% 
+   group_by(name, cold) %>% 
+  count() %>% 
+  pivot_wider(
+    
+  )
+```
+## the 2nd way to create 2x2 table
+```{r}
+weather_df %>% 
+  filter(name != "Waikiki_HA") %>% 
+  mutate(
+    cold = case_when(
+      tmax <5 ~ "cold",
+      tmax >=5 ~"not cold",
+      TRUE     ~ ""
+    )
+  ) %>% 
+  janitor::tabyl(name,cold)
+```
+## general summary
+```{r}
+## there are some "NA"s in it, check missing data and drop them
+weather_df %>%
+  group_by(name) %>%
+  summarize(
+    n = n(),
+    mean_tmax = mean(tmax),
+    mean_prec = mean(prcp, na.rm = TRUE),
+    median_tmax = median(tmax),
+    sd_tmax = sd(tmax))
+
+weather_df %>%
+  group_by(name) %>%
+  summarize(
+    n = n(),
+    mean_tmax = mean(tmax),
+    mean_prec = mean(prcp, na.rm = TRUE),
+    median_tmax = median(tmax),
+    sd_tmax = sd(tmax))
+```
+## find "NA"s
+```{r}
+weather_df %>%
+  filter(is.na(tmax))
+```
+
+## it is good to draw ggplot after summary, and see the distribution
+```{r}
+weather_df %>%
+  group_by(name,month) %>%
+  summarize(
+    n = n(),
+    mean_tmax = mean(tmax,na.rm = TRUE),
+    mean_prec = mean(prcp, na.rm = TRUE),
+    median_tmax = median(tmax,na.rm = TRUE),
+    sd_tmax = sd(tmax,na.rm = TRUE)) %>% 
+  ggplot(aes(x = month, y= mean_tmax,color = name)) + 
+    geom_point() + geom_line() + 
+    theme(legend.position = "bottom")
+```
+## "knitr::kable(digits = 1)" can output 1 digit!!
+```{r}
+weather_df %>%
+  group_by(name,month) %>%
+  summarize(
+    n = n(),
+    mean_tmax = mean(tmax,na.rm = TRUE)
+) %>% 
+pivot_wider(
+    names_from = name,
+    values_from = mean_tmax) %>% 
+  knitr::kable(digits = 1)
+```
+
+## grouped mutates
+## you can ungroup!!
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  ungroup()
+```
+## na.rm 去掉为na的计算值
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  mutate(mean_tmax = mean(tmax,na.rm=TRUE),
+         centered_tmax = tmax - mean_tmax)%>% 
+  ggplot(aes(x= date, y = centered_tmax,color = name))+
+  geom_point()
+```
+
+
+## window function in grouped mutates
+## 增加新的列来rank
+## "min_rank" 是从低到高排序，也可以从高到低，?min_rank
+```{r}
+weather_df %>%
+  group_by(name, month) %>%
+  mutate(tmax_rank = min_rank(tmax)) %>% 
+  filter(tmax_rank==1)
+```
+
+## lags and leads
+## 和前一天的数比较，可以看出change
+```{r}
+weather_df %>%
+  group_by(name) %>%
+  mutate(lagged_tmax =  lag(tmax))
+```
+
+## 这样可以做到 ‘后一天-前一天’based on group,再看方差 或者做summarize
+```{r}
+weather_df %
+  group_by(name) %>%
+  mutate(temp_change = tmax - lag(tmax)) %>%
+  summarize(temp_change_sd = sd(temp_change, na.rm = TRUE),
+            temp_change_max = max(temp_change, na.rm = TRUE))
+```
+
